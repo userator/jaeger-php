@@ -13,20 +13,21 @@
  * the License.
  */
 
-namespace tests;
+namespace Jaeger\Sender;
 
-use PHPUnit\Framework\TestCase;
-use Jaeger\SpanContext;
+use Jaeger\Thrift\Batch;
 
-class RemoteReporterTest extends TestCase{
-
-    public function getSpanContext(){
-        return new SpanContext(1562237095801441413, 0, 1, null, 1);
+class NullSender implements Sender
+{
+    public function isOpen()
+    {
     }
 
-
-    public function testClose(){
-        $this->assertTrue(true);
+    public function emitBatch(Batch $batch)
+    {
     }
 
+    public function close()
+    {
+    }
 }

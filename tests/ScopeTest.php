@@ -15,31 +15,31 @@
 
 namespace tests;
 
-use OpenTracing\NoopSpanContext;
-use Jaeger\Span;
-use PHPUnit\Framework\TestCase;
 use Jaeger\ScopeManager;
+use Jaeger\Span;
+use OpenTracing\NoopSpanContext;
+use PHPUnit\Framework\TestCase;
 
 class ScopeTest extends TestCase
 {
-
-    public function testClose(){
+    public function testClose(): void
+    {
         $span1 = new Span('test', new NoopSpanContext(), []);
 
         $scopeManager = new ScopeManager();
         $scope = $scopeManager->activate($span1, true);
         $scope->close();
 
-        $this->assertTrue($scopeManager->getActive() === null);
+        static::assertNull($scopeManager->getActive());
     }
 
-
-    public function testGetSpan(){
+    public function testGetSpan(): void
+    {
         $span1 = new Span('test', new NoopSpanContext(), []);
 
         $scopeManager = new ScopeManager();
         $scope = $scopeManager->activate($span1, true);
 
-        $this->assertTrue($scope->getSpan() !== null);
+        static::assertNotNull($scope->getSpan());
     }
 }

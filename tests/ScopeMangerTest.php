@@ -15,51 +15,51 @@
 
 namespace tests;
 
-use OpenTracing\NoopSpanContext;
-use Jaeger\Span;
-use PHPUnit\Framework\TestCase;
 use Jaeger\ScopeManager;
+use Jaeger\Span;
+use OpenTracing\NoopSpanContext;
+use PHPUnit\Framework\TestCase;
 
 class ScopeMangerTest extends TestCase
 {
-
-    public function testActivate(){
+    public function testActivate(): void
+    {
         $span1 = new Span('test', new NoopSpanContext(), []);
 
         $scopeManager = new ScopeManager();
         $scope = $scopeManager->activate($span1, true);
         $span2 = $scope->getSpan();
 
-        $this->assertTrue($span1 === $span2);
+        static::assertSame($span1, $span2);
     }
 
-    public function testGetActive(){
-
+    public function testGetActive(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
 
         $scopeManager = new ScopeManager();
         $scope1 = $scopeManager->activate($span, true);
 
         $scope2 = $scopeManager->getActive();
-        $this->assertTrue($scope1 === $scope2);
+        static::assertSame($scope1, $scope2);
     }
 
-
-    public function testDelActive(){
-
+    public function testDelActive(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
 
         $scopeManager = new ScopeManager();
         $scope = $scopeManager->activate($span, true);
 
-        $res = $scopeManager->delActive($scope);
-        $this->assertTrue($res == true);
+        $res = $scopeManager->deactivate($scope);
+        static::assertTrue($res);
 
         $getRes = $scopeManager->getActive();
-        $this->assertTrue($getRes === null);
+        static::assertNull($getRes);
     }
 
-    public function testDelActiveNestedScopes() {
+    public function testDelActiveNestedScopes(): void
+    {
         $scopeManager = new ScopeManager();
         $span1 = new Span('Z', new NoopSpanContext(), []);
         $scope1 = $scopeManager->activate($span1, true);
@@ -69,25 +69,26 @@ class ScopeMangerTest extends TestCase
         $scope3 = $scopeManager->activate($span3, true);
 
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope3);
+        static::assertSame($active, $scope3);
 
-        $res = $scopeManager->delActive($scope3);
-        $this->assertTrue($res == true);
+        $res = $scopeManager->deactivate($scope3);
+        static::assertTrue($res);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope2);
+        static::assertSame($active, $scope2);
 
-        $res = $scopeManager->delActive($scope2);
-        $this->assertTrue($res == true);
+        $res = $scopeManager->deactivate($scope2);
+        static::assertTrue($res);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope1);
+        static::assertSame($active, $scope1);
 
-        $res = $scopeManager->delActive($scope1);
-        $this->assertTrue($res == true);
+        $res = $scopeManager->deactivate($scope1);
+        static::assertTrue($res);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === null);
+        static::assertNull($active);
     }
 
-    public function testDelActiveReNestScopes() {
+    public function testDelActiveReNestScopes(): void
+    {
         $scopeManager = new ScopeManager();
         $span1 = new Span('A', new NoopSpanContext(), []);
         $scope1 = $scopeManager->activate($span1, true);
@@ -95,26 +96,26 @@ class ScopeMangerTest extends TestCase
         $scope2 = $scopeManager->activate($span2, true);
 
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope2);
+        static::assertSame($active, $scope2);
 
         // Remove scope2 so that scope1 is active
-        $scopeManager->delActive($scope2);
+        $scopeManager->deactivate($scope2);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope1);
+        static::assertSame($active, $scope1);
 
         // Add a new active scope3
         $span3 = new Span('C', new NoopSpanContext(), []);
         $scope3 = $scopeManager->activate($span3, true);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope3);
+        static::assertSame($active, $scope3);
 
         // Delete active scope3
-        $scopeManager->delActive($scope3);
+        $scopeManager->deactivate($scope3);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === $scope1);
+        static::assertSame($active, $scope1);
 
-        $scopeManager->delActive($scope1);
+        $scopeManager->deactivate($scope1);
         $active = $scopeManager->getActive();
-        $this->assertTrue($active === null);
+        static::assertNull($active);
     }
 }

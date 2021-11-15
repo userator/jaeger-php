@@ -1,103 +1,76 @@
-[![Build Status](https://travis-ci.com/jukylin/jaeger-php.svg?branch=master)](https://travis-ci.com/jukylin/jaeger-php)
-[![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%205.6-8892BF.svg)](https://php.net/)
-[![License](https://img.shields.io/github/license/jukylin/jaeger-php.svg)](https://github.com/jukylin/jaeger-php/blob/master/LICENSE)
-[![Coverage Status](https://coveralls.io/repos/github/jukylin/jaeger-php/badge.svg?branch=master)](https://coveralls.io/github/jukylin/jaeger-php?branch=master)
-
 # jaeger-php
 
-## Install
+[![Tests](https://github.com/auxmoney/jaeger-php/actions/workflows/test.yaml/badge.svg)](https://github.com/auxmoney/jaeger-php/actions/workflows/test.yaml)
+[![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%207.1-8892BF.svg)](https://php.net/)
+[![License](https://img.shields.io/github/license/auxmoney/jaeger-php.svg)](https://github.com/auxmoney/jaeger-php/blob/master/LICENSE)
+[![Coverage Status](https://coveralls.io/repos/github/auxmoney/jaeger-php/badge.svg?branch=master)](https://coveralls.io/github/auxmoney/jaeger-php?branch=master)
 
-Install via composer.
+_ATTENTION: this is a fork and republication of [jukylin/jaeger-php](https://github.com/jukylin/jaeger-php)_
+
+_We opted into forking and publishing the original library in order to maintain our set of 
+[opentracing related symfony bundles](https://github.com/auxmoney?q=opentracingbundle). The original library seems to be unmaintained 
+currently._
+
+jaeger-php is a library implementing the [OpenTracing specification for PHP](https://github.com/opentracing/opentracing-php) to 
+connect with the [Jaeger Distributed Tracing Platform](https://github.com/jaegertracing/jaeger). It can be used to instrument PHP
+code to generate tracing data and send it to Jaeger.
+
+## Installation
 
 ```
-composer config minimum-stability dev
-composer require jukylin/jaeger-php
+composer require auxmoney/jaeger-php
 ```
 
-## Init Jaeger-php
+## Usage
+
+First, you need to create a `Config` object, which serves as the factory to create your `Tracer`:
 
 ```php
-$config = Config::getInstance();
-$tracer = $config->initTracer('example', '0.0.0.0:6831');
+// create a config instance
+$config = \Jaeger\Config::getInstance();
+// create a tracer
+$tracer = $config->initTracer('example service name', '0.0.0.0:6831');
 ```
 
-## 128bit
-
+To make the distributed tracing work, you need to extract your `SpanContext` from somewhere, e.g. `$_SERVER`:
 ```php
-$config->gen128bit();
+$spanContext = $tracer->extract(\Opentracing\Formats\TEXT_MAP, $_SERVER);
 ```
 
-## Extract from Superglobals
-
+You can then start tracing by using the common Opentracing interface:
 ```php
-$spanContext = $tracer->extract(Formats\TEXT_MAP, $_SERVER);
+$tracer->startActiveSpan("example operation name", ['child_of' => $spanContext]);
 ```
 
-## Start Span
-
+To add metadata to your span, you need to retrieve it first (be sure to check the [semantic conventions](https://opentracing.io/specification/conventions/) first):
 ```php
-$serverSpan = $tracer->startSpan('example HTTP', ['child_of' => $spanContext]);
-```
-
-## Distributed context propagation
-```php
-$serverSpan->addBaggageItem("version", "2.0.0");
-```
-
-## Inject into Superglobals
-
-```php
-$clientTrace->inject($clientSpan1->spanContext, Formats\TEXT_MAP, $_SERVER);
-```
-
-## Tags and Log
-
-```php
-// tags are searchable in Jaeger UI
-$span->setTag('http.status', '200');
-
-// log record
-$span->log(['error' => 'HTTP request timeout']);
-```
-
-## Close Tracer
-
-```php
-$config->setDisabled(true);
-```
-
-## Zipkin B3 Propagation
-
-*no support for* `Distributed context propagation`
-
-```php
-$config::$propagator = \Jaeger\Constants\PROPAGATOR_ZIPKIN;
-```
-
-## Finish span and flush Tracer
-
-```php
+$span = $tracer->getActiveSpan();
+$span->addBaggageItem("user_id", "12345");
+$span->setTag("http.url", "http://localhost");
+$span->log(["message" => "responded successfully"]);
 $span->finish();
+```
+
+Finally, at the end of your script, you should flush the original `Config`. This will flush all created `Tracer`s and all created `Span`s:
+```php
 $config->flush();
 ```
 
-## More example
+### optional configuration
 
-- [HTTP](https://github.com/jukylin/jaeger-php/blob/master/example/HTTP.php)
-- [Hprose](https://github.com/jukylin/blog/blob/master/Uber%E5%88%86%E5%B8%83%E5%BC%8F%E8%BF%BD%E8%B8%AA%E7%B3%BB%E7%BB%9FJaeger%E4%BD%BF%E7%94%A8%E4%BB%8B%E7%BB%8D%E5%92%8C%E6%A1%88%E4%BE%8B%E3%80%90PHP%20%20%20Hprose%20%20%20Go%E3%80%91.md#跨语言调用案例)
-- [Istio](https://github.com/jukylin/jaeger-php/blob/master/example/README.md)
+```php
+// optional: generate 128 bit trace ids (default: false)
+$config->gen128bit();
+// optional: disable tracing (default: false)
+$config->setDisabled(true);
+// optional: inject custom transport (default: TransportUdp)
+$config->setTransport($transport);
+// optional: inject custom reporter (default: RemoteReporter)
+$config->setReporter($reporter);
+// optional: inject custom sampler (default: ConstSampler)
+$config->setSampler($sampler);
+```
 
-## Features
+## Special thanks
 
-- Transports
-    - via Thrift over UDP
-
-- Sampling
-    - ConstSampler
-    - ProbabilisticSampler
-
-## Reference
-
-[OpenTracing](https://opentracing.io/)
-
-[Jaeger](https://uber.github.io/jaeger/)
+Thank you @jukylin for creating this library!

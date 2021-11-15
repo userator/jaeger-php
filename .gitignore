@@ -1,7 +1,9 @@
 .settings/
 .buildpath
+.php-version
 .project
 .idea
+.php-cs-fixer.cache
 composer.lock
 vendor/*
 build

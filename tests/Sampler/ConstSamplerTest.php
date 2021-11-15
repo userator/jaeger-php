@@ -13,23 +13,24 @@
  * the License.
  */
 
-namespace tests;
+namespace tests\Sampler;
 
+use Jaeger\Constants;
 use Jaeger\Sampler\ConstSampler;
 use PHPUnit\Framework\TestCase;
-use Jaeger\Constants;
 
 class ConstSamplerTest extends TestCase
 {
-
-    public function testConstSampler(){
+    public function testConstSampler(): void
+    {
         $sample = new ConstSampler(true);
-        $this->assertTrue($sample->IsSampled()  == true);
+        static::assertTrue($sample->IsSampled());
     }
 
-    public function testConstSamplerGetTag(){
+    public function testConstSamplerGetTag(): void
+    {
         $sample = new ConstSampler(true);
         $tags = $sample->getTags();
-        $this->assertTrue($tags[Constants\SAMPLER_TYPE_TAG_KEY] == 'const');
+        static::assertEquals('const', $tags[Constants\SAMPLER_TYPE_TAG_KEY]);
     }
 }

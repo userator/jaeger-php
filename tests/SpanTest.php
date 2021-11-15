@@ -15,63 +15,62 @@
 
 namespace tests;
 
+use Jaeger\Span;
 use Jaeger\SpanContext;
 use OpenTracing\NoopSpanContext;
-use Jaeger\Span;
 use PHPUnit\Framework\TestCase;
 
 class SpanTest extends TestCase
 {
-
-    public function testOverwriteOperationName(){
+    public function testOverwriteOperationName(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
         $span->overwriteOperationName('test2');
-        $this->assertTrue($span->getOperationName() == 'test2');
+        static::assertEquals('test2', $span->getOperationName());
     }
 
-
-    public function testAddTags(){
+    public function testAddTags(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
         $span->setTag('test', 'test');
-        $this->assertTrue((isset($span->tags['test']) && $span->tags['test'] == 'test'));
+        static::assertTrue((isset($span->tags['test']) && 'test' == $span->tags['test']));
     }
 
-
-    public function testFinish(){
+    public function testFinish(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
         $span->setTag('test', 'test');
         $span->finish();
-        $this->assertTrue(!empty($span->finishTime) && !empty($span->duration));
+        static::assertTrue(null !== $span->finishTime && null !== $span->duration);
     }
 
-
-    public function testGetContext(){
+    public function testGetContext(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
         $spanContext = $span->getContext();
-        $this->assertInstanceOf(NoopSpanContext::class, $spanContext);
+        static::assertInstanceOf(NoopSpanContext::class, $spanContext);
     }
 
-
-
-    public function testLog(){
+    public function testLog(): void
+    {
         $span = new Span('test', new NoopSpanContext(), []);
         $logs = [
             'msg' => 'is test',
-            'msg2' => 'is msg 2'
+            'msg2' => 'is msg 2',
         ];
         $span->log($logs);
-        $this->assertTrue(count($span->logs) == 1);
+        static::assertCount(1, $span->logs);
     }
 
-
-    public function testGetBaggageItem(){
+    public function testGetBaggageItem(): void
+    {
         $span = new Span('test', new SpanContext(0, 0, 0), []);
         $span->addBaggageItem('version', '2.0.0');
 
-        $version =  $span->getBaggageItem('version');
-        $this->assertEquals('2.0.0', $version);
+        $version = $span->getBaggageItem('version');
+        static::assertEquals('2.0.0', $version);
 
         $service = $span->getBaggageItem('service');
-        $this->assertNull($service);
+        static::assertNull($service);
     }
 }

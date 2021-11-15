@@ -13,16 +13,18 @@
  * the License.
  */
 
-require_once dirname(dirname(dirname(dirname(__FILE__)))).'/autoload.php';
+require_once dirname(__FILE__, 2).'/vendor/autoload.php';
 
+use GuzzleHttp\Client;
 use Jaeger\Config;
+use const Jaeger\Constants\PROPAGATOR_ZIPKIN;
 use OpenTracing\Formats;
 
-$http = new swoole_http_server("0.0.0.0", 8001);
+$http = new swoole_http_server('0.0.0.0', 8001);
 $http->on('request', function ($request, $response) {
     unset($_SERVER['argv']);
     $config = Config::getInstance();
-    $config::$propagator = \Jaeger\Constants\PROPAGATOR_ZIPKIN;
+    $config::$propagator = PROPAGATOR_ZIPKIN;
 
     //init server span start
     $tracer = $config->initTracer('Istio', 'jaeger-agent.istio-system:6831');
@@ -37,10 +39,10 @@ $http->on('request', function ($request, $response) {
     $clientSpan = $clientTracer->startSpan('Istio2', ['child_of' => $spanContext]);
     $clientTracer->inject($clientSpan->spanContext, Formats\TEXT_MAP, $injectTarget);
 
-    $client = new \GuzzleHttp\Client();
-    $clientSpan->setTag("http.url", "Istio3:8002");
+    $client = new Client();
+    $clientSpan->setTag('http.url', 'Istio3:8002');
     $res = $client->request('GET', 'Istio3:8002', ['headers' => $injectTarget]);
-    $clientSpan->setTag("http.status_code", $res->getStatusCode());
+    $clientSpan->setTag('http.status_code', $res->getStatusCode());
     //client span1 end
 
     //server span end
@@ -48,6 +50,6 @@ $http->on('request', function ($request, $response) {
     //trace flush
     $config->flush();
 
-    $response->end("Hello Istio2");
+    $response->end('Hello Istio2');
 });
 $http->start();

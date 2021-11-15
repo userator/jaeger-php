@@ -13,102 +13,103 @@
  * the License.
  */
 
-namespace tests;
+namespace tests\Propagator;
 
-use PHPUnit\Framework\TestCase;
-use OpenTracing\Formats;
 use Jaeger\Constants;
-use Jaeger\SpanContext;
 use Jaeger\Propagator\JaegerPropagator;
+use Jaeger\SpanContext;
+use OpenTracing\Formats;
+use PHPUnit\Framework\TestCase;
 
-class JaegerPropagatorTest extends TestCase{
+class JaegerPropagatorTest extends TestCase
+{
+    /**
+     * @var SpanContext|null
+     */
+    public $spanContext;
 
-    public function getSpanContext(){
-        return new SpanContext(1562237095801441413, 0, 1, null, 1);
+    public function setUp(): void
+    {
+        $this->spanContext = new SpanContext(1, 1, 1, null, 1);
     }
 
-
-    public function testInject(){
-        $context = $this->getSpanContext();
-        $context->traceIdLow = 1562237095801441413;
+    public function testInject(): void
+    {
+        $this->spanContext->traceIdLow = 1562237095801441413;
         $jaeger = new JaegerPropagator();
         $carrier = [];
 
-        $jaeger->inject($context, Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($carrier[strtoupper(Constants\Tracer_State_Header_Name)] == '15ae2e5c8e2ecc85:15ae2e5c8e2ecc85:0:1');
+        $jaeger->inject($this->spanContext, Formats\TEXT_MAP, $carrier);
+        static::assertEquals('15ae2e5c8e2ecc85:1:1:1', $carrier[strtoupper(Constants\Tracer_State_Header_Name)]);
     }
 
-
-    public function testInject128Bit(){
-        $context = $this->getSpanContext();
-        $context->traceIdLow = 1562289663898779811;
-        $context->traceIdHigh = 1562289663898881723;
+    public function testInject128Bit(): void
+    {
+        $this->spanContext->traceIdLow = 1562289663898779811;
+        $this->spanContext->traceIdHigh = 1562289663898881723;
 
         $jaeger = new JaegerPropagator();
         $carrier = [];
 
-        $jaeger->inject($context, Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($carrier[strtoupper(Constants\Tracer_State_Header_Name)]
-            == '15ae5e2c04f50ebb15ae5e2c04f380a3:15ae2e5c8e2ecc85:0:1');
+        $jaeger->inject($this->spanContext, Formats\TEXT_MAP, $carrier);
+        static::assertEquals('15ae5e2c04f50ebb15ae5e2c04f380a3:1:1:1', $carrier[strtoupper(Constants\Tracer_State_Header_Name)]);
     }
 
-
-    public function testExtract(){
-
+    public function testExtract(): void
+    {
         $jaeger = new JaegerPropagator();
         $carrier = [];
         $carrier[strtoupper(Constants\Tracer_State_Header_Name)] = '15ae2e5c8e2ecc85:15ae2e5c8e2ecc85:0:1';
 
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->traceIdLow == 1562237095801441413);
-        $this->assertTrue($context->parentId == 0);
-        $this->assertTrue($context->spanId == 1562237095801441413);
-        $this->assertTrue($context->flags == 1);
+        static::assertEquals(1562237095801441413, $context->traceIdLow);
+        static::assertEquals(0, $context->parentId);
+        static::assertEquals(1562237095801441413, $context->spanId);
+        static::assertEquals(1, $context->flags);
     }
 
-
-    public function testExtractDebugId(){
-
+    public function testExtractDebugId(): void
+    {
         $jaeger = new JaegerPropagator();
-        $carrier[Constants\Trace_Baggage_Header_Prefix . 'baggage'] = 2;
+        $carrier[Constants\Trace_Baggage_Header_Prefix.'baggage'] = 2;
 
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->debugId == 0);
+        static::assertEquals(0, $context->debugId);
 
         $carrier[Constants\Jaeger_Debug_Header] = 1;
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->debugId == 1);
+        static::assertEquals(1, $context->debugId);
     }
 
-
-    public function testExtractUberctx(){
+    public function testExtractUberctx(): void
+    {
         $jaeger = new JaegerPropagator();
 
         $carrier[Constants\Trace_Baggage_Header_Prefix] = '2.0.0';
         $carrier[Constants\Jaeger_Debug_Header] = true;
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->baggage == null);
+        static::assertNull($context->baggage);
 
         $carrier = [];
 
         $carrier[Constants\Trace_Baggage_Header_Prefix.'version'] = '2.0.0';
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->getBaggageItem('version') == '2.0.0');
+        static::assertEquals('2.0.0', $context->getBaggageItem('version'));
     }
 
-
-    public function testExtractBaggageHeader(){
+    public function testExtractBaggageHeader(): void
+    {
         $jaeger = new JaegerPropagator();
         $carrier = [];
 
         $carrier[Constants\Jaeger_Baggage_Header] = 'version=2.0.0,os=1';
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->getBaggageItem('version') == '2.0.0');
-        $this->assertTrue($context->getBaggageItem('os') == '1');
+        static::assertEquals('2.0.0', $context->getBaggageItem('version'));
+        static::assertEquals('1', $context->getBaggageItem('os'));
     }
 
-
-    public function testExtractBadBaggageHeader(){
+    public function testExtractBadBaggageHeader(): void
+    {
         $jaeger = new JaegerPropagator();
 
         $carrier = [];
@@ -116,45 +117,42 @@ class JaegerPropagatorTest extends TestCase{
         $carrier[Constants\Jaeger_Baggage_Header] = 'version';
         $carrier[Constants\Jaeger_Debug_Header] = true;
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->baggage == null);
+        static::assertNull($context->baggage);
     }
 
-
-    public function testExtract128Bit(){
-
+    public function testExtract128Bit(): void
+    {
         $jaeger = new JaegerPropagator();
         $carrier = [];
         $carrier[strtoupper(Constants\Tracer_State_Header_Name)]
             = '15ae5e2c04f50ebb15ae5e2c04f380a3:15ae2e5c8e2ecc85:0:1';
 
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->traceIdLow == 1562289663898779811);
-        $this->assertTrue($context->traceIdHigh == 1562289663898881723);
-        $this->assertTrue($context->parentId == 0);
-        $this->assertTrue($context->spanId == 1562237095801441413);
-        $this->assertTrue($context->flags == 1);
+        static::assertEquals(1562289663898779811, $context->traceIdLow);
+        static::assertEquals(1562289663898881723, $context->traceIdHigh);
+        static::assertEquals(0, $context->parentId);
+        static::assertEquals(1562237095801441413, $context->spanId);
+        static::assertEquals(1, $context->flags);
     }
 
-
-    public function testExtractPsr7(){
-
+    public function testExtractPsr7(): void
+    {
         $jaeger = new JaegerPropagator();
-        $carrier = [];
-        $carrier[] = [strtoupper(Constants\Tracer_State_Header_Name) => '15ae2e5c8e2ecc85:15ae2e5c8e2ecc85:0:1'];
+        $carrier = [strtoupper(Constants\Tracer_State_Header_Name) => '15ae2e5c8e2ecc85:15ae2e5c8e2ecc85:0:1'];
 
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($context->traceIdLow == 1562237095801441413);
-        $this->assertTrue($context->parentId == 0);
-        $this->assertTrue($context->spanId == 1562237095801441413);
-        $this->assertTrue($context->flags == 1);
+        static::assertEquals(1562237095801441413, $context->traceIdLow);
+        static::assertEquals(0, $context->parentId);
+        static::assertEquals(1562237095801441413, $context->spanId);
+        static::assertEquals(1, $context->flags);
     }
 
-
-    public function testExtractReturnsNull(){
+    public function testExtractReturnsNull(): void
+    {
         $jaeger = new JaegerPropagator();
         $carrier = [];
 
         $context = $jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertNull($context);
+        static::assertNull($context);
     }
 }

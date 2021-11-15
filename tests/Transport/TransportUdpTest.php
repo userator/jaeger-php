@@ -13,30 +13,47 @@
  * the License.
  */
 
-namespace tests;
+namespace tests\Transport;
 
-use PHPUnit\Framework\TestCase;
+use Jaeger\Jaeger;
+use Jaeger\Reporter\RemoteReporter;
+use Jaeger\Sampler\ConstSampler;
+use Jaeger\ScopeManager;
+use Jaeger\Sender\Sender;
 use Jaeger\Transport\TransportUdp;
+use PHPUnit\Framework\TestCase;
 
 class TransportUdpTest extends TestCase
 {
+    /**
+     * @var TransportUdp|null
+     */
+    public $tran;
 
-    public $tran = null;
+    /**
+     * @var Jaeger|null
+     */
+    public $tracer;
 
-    public function setUp(){
-        $this->tran = new TransportUdp('localhost:6831');
+    public function setUp(): void
+    {
+        $senderMock = $this->createMock(Sender::class);
+        $senderMock->method('emitBatch')->willReturn(true);
+
+        $this->tran = new TransportUdp('localhost:6831', 0, $senderMock);
+
+        $reporter = new RemoteReporter($this->tran);
+        $sampler = new ConstSampler();
+        $scopeManager = new ScopeManager();
+
+        $this->tracer = new Jaeger('jaeger', $reporter, $sampler, $scopeManager);
     }
 
-
-//    public function testFlush(){
-//        $this->tran->append();
-//    }
-
-
-    public function testResetBuffer(){
-        $this->tran->resetBuffer();
-        $this->assertCount(0, $this->tran->getBatchs());
-
+    public function testBuildAndCalcSizeOfProcessThrift(): void
+    {
+        $span = $this->tracer->startSpan('BuildAndCalcSizeOfProcessThrift');
+        $span->finish();
+        $this->tran->buildAndCalcSizeOfProcessThrift($this->tracer);
+        static::assertEquals(95, $this->tran->procesSize);
     }
-
 }

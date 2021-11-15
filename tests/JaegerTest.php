@@ -15,216 +15,206 @@
 
 namespace tests;
 
+use Jaeger\Constants;
 use Jaeger\Jaeger;
-use Jaeger\Reporter\RemoteReporter;
+use Jaeger\Propagator\JaegerPropagator;
+use Jaeger\Reporter\NullReporter;
 use Jaeger\Sampler\ConstSampler;
 use Jaeger\ScopeManager;
 use Jaeger\Span;
-use Jaeger\Transport\TransportUdp;
-use OpenTracing\Reference;
-use PHPUnit\Framework\TestCase;
-use OpenTracing\Formats;
 use Jaeger\SpanContext;
-use Jaeger\Constants;
-use Jaeger\Propagator\JaegerPropagator;
+use OpenTracing\Formats;
+use OpenTracing\Reference;
+use OpenTracing\UnsupportedFormatException;
+use PHPUnit\Framework\TestCase;
 
 class JaegerTest extends TestCase
 {
+    /**
+     * @var Jaeger|null
+     */
+    public $tracer;
 
-
-    public function getJaeger(){
-
-        $tranSport = new TransportUdp();
-        $reporter = new RemoteReporter($tranSport);
+    public function setUp(): void
+    {
+        $reporter = new NullReporter();
         $sampler = new ConstSampler();
         $scopeManager = new ScopeManager();
-
-        return new Jaeger('jaeger', $reporter, $sampler, $scopeManager);
+        $this->tracer = new Jaeger('jaeger', $reporter, $sampler, $scopeManager);
     }
 
-
-    public function testNew(){
-        $Jaeger = $this->getJaeger();
-        $this->assertInstanceOf(Jaeger::class, $Jaeger);
+    public function testNew(): void
+    {
+        static::assertInstanceOf(Jaeger::class, $this->tracer);
     }
 
-    public function testGetEnvTags(){
-
+    public function testGetEnvTags(): void
+    {
         $_SERVER['JAEGER_TAGS'] = 'a=b,c=d';
-        $Jaeger = $this->getJaeger();
-        $tags = $Jaeger->getEnvTags();
-
-        $this->assertTrue(count($tags) > 0);
+        $tags = $this->tracer->getEnvTags();
+        static::assertNotEmpty($tags);
     }
 
-
-    public function testSetTags(){
-        $Jaeger = $this->getJaeger();
-
-        $Jaeger->setTags(['version' => '2.0.0']);
-        $this->assertTrue($Jaeger->tags['version'] ==  '2.0.0');
+    public function testSetTags(): void
+    {
+        $this->tracer->setTags(['version' => '2.0.0']);
+        static::assertEquals('2.0.0', $this->tracer->tags['version']);
     }
 
-
-    public function testInject(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->setPropagator(new JaegerPropagator());
+    public function testInject(): void
+    {
+        $this->tracer->setPropagator(new JaegerPropagator());
 
         $context = new SpanContext(1, 1, 1, null, 1);
 
-        $Jaeger->inject($context, Formats\TEXT_MAP, $_SERVER);
-        $this->assertTrue('0:1:1:1' == $_SERVER[strtoupper(Constants\Tracer_State_Header_Name)]);
+        $this->tracer->inject($context, Formats\TEXT_MAP, $_SERVER);
+        static::assertEquals('0:1:1:1', $_SERVER[strtoupper(Constants\Tracer_State_Header_Name)]);
     }
 
-
-    public function testInjectUnSupportFormat(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->setPropagator(new JaegerPropagator());
+    public function testInjectUnSupportFormat(): void
+    {
+        $this->tracer->setPropagator(new JaegerPropagator());
 
         $context = new SpanContext(1, 1, 1, null, 1);
-        $this->expectExceptionMessage('The format \'http_headers\' is not supported.');
+        $this->expectException(UnsupportedFormatException::class);
+        $this->expectExceptionMessage('The format "http_headers" is not supported.');
 
-        $Jaeger->inject($context, Formats\HTTP_HEADERS, $_SERVER);
+        $this->tracer->inject($context, Formats\HTTP_HEADERS, $_SERVER);
     }
 
-
-    public function testExtract(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->setPropagator(new JaegerPropagator());
+    public function testExtract(): void
+    {
+        $this->tracer->setPropagator(new JaegerPropagator());
 
         $carrier[strtoupper(Constants\Tracer_State_Header_Name)] = '1:1:1:1';
-        $spanContext = $Jaeger->extract(Formats\TEXT_MAP, $carrier);
-        $this->assertTrue($spanContext->parentId == 1);
-        $this->assertTrue($spanContext->traceIdLow == 1);
-        $this->assertTrue($spanContext->flags == 1);
-        $this->assertTrue($spanContext->spanId == 1);
+        $spanContext = $this->tracer->extract(Formats\TEXT_MAP, $carrier);
+        static::assertEquals(1, $spanContext->parentId);
+        static::assertEquals(1, $spanContext->traceIdLow);
+        static::assertEquals(1, $spanContext->flags);
+        static::assertEquals(1, $spanContext->spanId);
     }
 
-
-    public function testExtractUnSupportFormat(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->setPropagator(new JaegerPropagator());
+    public function testExtractUnSupportFormat(): void
+    {
+        $this->tracer->setPropagator(new JaegerPropagator());
 
         $_SERVER[strtoupper(Constants\Tracer_State_Header_Name)] = '1:1:1:1';
-        $this->expectExceptionMessage('The format \'http_headers\' is not supported.');
+        $this->expectException(UnsupportedFormatException::class);
+        $this->expectExceptionMessage('The format "http_headers" is not supported.');
 
-        $Jaeger->extract(Formats\HTTP_HEADERS, $_SERVER);
+        $this->tracer->extract(Formats\HTTP_HEADERS, $_SERVER);
     }
 
-
-    public function testStartSpan(){
-        $Jaeger = $this->getJaeger();
-        $span = $Jaeger->startSpan('test');
-        $this->assertNotEmpty($span->startTime);
-        $this->assertNotEmpty($Jaeger->getSpans());
-    }
-
-
-    public function testStartSpanWithFollowsFromTypeRef()
+    public function testStartSpan(): void
     {
-        $jaeger = $this->getJaeger();
-        $rootSpan = $jaeger->startSpan('root-a');
-        $childSpan = $jaeger->startSpan('span-a', [
-            'references' => Reference::create(Reference::FOLLOWS_FROM, $rootSpan),
+        $span = $this->tracer->startSpan('test');
+        static::assertNotNull($span->startTime);
+        static::assertNotEmpty($this->tracer->getSpans());
+    }
+
+    public function testStartSpanWithFollowsFromTypeRef(): void
+    {
+        $rootSpan = $this->tracer->startSpan('root-a');
+        $childSpan = $this->tracer->startSpan('span-a', [
+            'references' => Reference::createForSpan(Reference::FOLLOWS_FROM, $rootSpan),
         ]);
 
-        $this->assertSame($childSpan->spanContext->traceIdLow, $rootSpan->spanContext->traceIdLow);
-        $this->assertSame(current($childSpan->references)->getContext(), $rootSpan->spanContext);
+        if (!($childSpan->spanContext instanceof SpanContext && $rootSpan->spanContext instanceof SpanContext)) {
+            static::fail('span contexts are not Jaeger\SpanContexts');
+        }
+        static::assertSame($childSpan->spanContext->traceIdLow, $rootSpan->spanContext->traceIdLow);
+        static::assertSame(current($childSpan->references)->getSpanContext(), $rootSpan->spanContext);
 
-        $otherRootSpan = $jaeger->startSpan('root-a');
-        $childSpan = $jaeger->startSpan('span-b', [
+        $otherRootSpan = $this->tracer->startSpan('root-a');
+        $childSpan = $this->tracer->startSpan('span-b', [
             'references' => [
-                Reference::create(Reference::FOLLOWS_FROM, $rootSpan),
-                Reference::create(Reference::FOLLOWS_FROM, $otherRootSpan),
+                Reference::createForSpan(Reference::FOLLOWS_FROM, $rootSpan),
+                Reference::createForSpan(Reference::FOLLOWS_FROM, $otherRootSpan),
             ],
         ]);
 
-        $this->assertSame($childSpan->spanContext->traceIdLow, $otherRootSpan->spanContext->traceIdLow);
+        if (!($childSpan->spanContext instanceof SpanContext && $otherRootSpan->spanContext instanceof SpanContext)) {
+            static::fail('span contexts are not Jaeger\SpanContexts');
+        }
+        static::assertSame($childSpan->spanContext->traceIdLow, $otherRootSpan->spanContext->traceIdLow);
     }
 
-
-    public function testStartSpanWithChildOfTypeRef()
+    public function testStartSpanWithChildOfTypeRef(): void
     {
-        $jaeger = $this->getJaeger();
-        $rootSpan = $jaeger->startSpan('root-a');
-        $otherRootSpan = $jaeger->startSpan('root-b');
-        $childSpan = $jaeger->startSpan('span-a', [
+        $rootSpan = $this->tracer->startSpan('root-a');
+        $otherRootSpan = $this->tracer->startSpan('root-b');
+        $childSpan = $this->tracer->startSpan('span-a', [
             'references' => [
-                Reference::create(Reference::CHILD_OF, $rootSpan),
-                Reference::create(Reference::CHILD_OF, $otherRootSpan),
+                Reference::createForSpan(Reference::CHILD_OF, $rootSpan),
+                Reference::createForSpan(Reference::CHILD_OF, $otherRootSpan),
             ],
         ]);
 
-        $this->assertSame($childSpan->spanContext->traceIdLow, $rootSpan->spanContext->traceIdLow);
+        if (!($childSpan->spanContext instanceof SpanContext && $rootSpan->spanContext instanceof SpanContext)) {
+            static::fail('span contexts are not Jaeger\SpanContexts');
+        }
+        static::assertSame($childSpan->spanContext->traceIdLow, $rootSpan->spanContext->traceIdLow);
     }
 
-
-    public function testStartSpanWithCustomStartTime()
+    public function testStartSpanWithCustomStartTime(): void
     {
-        $jaeger = $this->getJaeger();
-        $span = $jaeger->startSpan('test', ['start_time' => 1499355363.123456]);
+        $span = $this->tracer->startSpan('test', ['start_time' => 1499355363.123456]);
 
-        $this->assertSame(1499355363123456, $span->startTime);
+        static::assertSame(1499355363123456, $span->startTime);
     }
 
-
-    public function testStartSpanWithAllRefType()
+    public function testStartSpanWithAllRefType(): void
     {
-        $jaeger = $this->getJaeger();
-        $rootSpan = $jaeger->startSpan('root-a');
-        $otherRootSpan = $jaeger->startSpan('root-b');
-        $childSpan = $jaeger->startSpan('span-a', [
+        $rootSpan = $this->tracer->startSpan('root-a');
+        $otherRootSpan = $this->tracer->startSpan('root-b');
+        $childSpan = $this->tracer->startSpan('span-a', [
             'references' => [
-                Reference::create(Reference::FOLLOWS_FROM, $rootSpan),
-                Reference::create(Reference::CHILD_OF, $otherRootSpan),
+                Reference::createForSpan(Reference::FOLLOWS_FROM, $rootSpan),
+                Reference::createForSpan(Reference::CHILD_OF, $otherRootSpan),
             ],
         ]);
 
-        $this->assertSame($childSpan->spanContext->traceIdLow, $otherRootSpan->spanContext->traceIdLow);
+        if (!($childSpan->spanContext instanceof SpanContext && $otherRootSpan->spanContext instanceof SpanContext)) {
+            static::fail('span contexts are not Jaeger\SpanContexts');
+        }
+        static::assertSame($childSpan->spanContext->traceIdLow, $otherRootSpan->spanContext->traceIdLow);
     }
 
-
-    public function testReportSpan(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->startSpan('test');
-        $Jaeger->reportSpan();
-        $this->assertEmpty($Jaeger->getSpans());
+    public function testReportSpan(): void
+    {
+        $this->tracer->startSpan('test');
+        $this->tracer->reportSpan();
+        static::assertEmpty($this->tracer->getSpans());
     }
 
-    public function testStartActiveSpan(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->startActiveSpan('test');
-
-        $this->assertNotEmpty($Jaeger->getSpans());
+    public function testStartActiveSpan(): void
+    {
+        $this->tracer->startActiveSpan('test');
+        static::assertNotEmpty($this->tracer->getSpans());
     }
 
+    public function testGetActiveSpan(): void
+    {
+        $this->tracer->startActiveSpan('test');
 
-    public function testGetActiveSpan(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->startActiveSpan('test');
-
-        $span = $Jaeger->getActiveSpan();
-
-        $this->assertInstanceOf(Span::class, $span);
+        $span = $this->tracer->getActiveSpan();
+        static::assertInstanceOf(Span::class, $span);
     }
 
-
-    public function testFlush(){
-        $Jaeger = $this->getJaeger();
-        $Jaeger->startSpan('test');
-        $Jaeger->flush();
-        $this->assertEmpty($Jaeger->getSpans());
+    public function testFlush(): void
+    {
+        $this->tracer->startSpan('test');
+        $this->tracer->flush();
+        static::assertEmpty($this->tracer->getSpans());
     }
 
-
-    public function testNestedSpanBaggage(){
-        $tracer = $this->getJaeger();
-
-        $parent = $tracer->startSpan('parent');
+    public function testNestedSpanBaggage(): void
+    {
+        $parent = $this->tracer->startSpan('parent');
         $parent->addBaggageItem('key', 'value');
 
-        $child = $tracer->startSpan('child', [Reference::CHILD_OF => $parent]);
+        $child = $this->tracer->startSpan('child', [Reference::CHILD_OF => $parent]);
 
-        $this->assertEquals($parent->getBaggageItem('key'), $child->getBaggageItem('key'));
+        static::assertEquals($parent->getBaggageItem('key'), $child->getBaggageItem('key'));
     }
 }

@@ -12,32 +12,56 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+
 namespace tests;
 
-use PHPUnit\Framework\TestCase;
 use Jaeger\Config;
+use Jaeger\Reporter\NullReporter;
 use OpenTracing\NoopTracer;
+use OpenTracing\Tracer;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 class ConfigTest extends TestCase
 {
-
-    public function testSetDisabled(){
+    public function testSetDisabled(): void
+    {
         $config = Config::getInstance();
         $config->setDisabled(true);
 
-        $this->assertTrue($config::$disabled == true);
+        static::assertEquals(true, $config::$disabled);
     }
 
-
-    public function testNoopTracer(){
-
+    public function testNoopTracer(): void
+    {
         $config = Config::getInstance();
         $config->setDisabled(true);
         $trace = $config->initTracer('test');
 
-        $this->assertTrue($trace instanceof NoopTracer);
+        static::assertInstanceOf(NoopTracer::class, $trace);
     }
 
+    public function testflushMulTracer(): void
+    {
+        $report = new NullReporter();
+        $config = Config::getInstance();
+        $config->setDisabled(false);
+        $config->setReporter($report);
+        $tracer1 = $config->initTracer('tracer1', 'localhost:1');
+        static::assertInstanceOf(Tracer::class, $tracer1);
+        $tracer2 = $config->initTracer('tracer2', 'localhost:2');
+        static::assertInstanceOf(Tracer::class, $tracer2);
+        static::assertTrue($config->flush());
+    }
 
+    public function testEmptyServiceName(): void
+    {
+        $this->expectException(RuntimeException::class);
 
+        $report = new NullReporter();
+        $config = Config::getInstance();
+        $config->setDisabled(false);
+        $config->setReporter($report);
+        $config->initTracer('');
+    }
 }

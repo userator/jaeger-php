@@ -18,9 +18,12 @@ namespace Jaeger\Reporter;
 use Jaeger\Jaeger;
 use Jaeger\Transport\Transport;
 
-class RemoteReporter implements Reporter{
-
-    public $tran = null;
+class RemoteReporter implements Reporter
+{
+    /**
+     * @var Transport|null
+     */
+    public $tran;
 
     public function __construct(Transport $tran)
     {
@@ -32,9 +35,8 @@ class RemoteReporter implements Reporter{
         $this->tran->append($jaeger);
     }
 
-
     public function close()
     {
-        $this->tran->flush();
+        $this->tran->close();
     }
 }
