@@ -15,6 +15,9 @@
 
 namespace Jaeger;
 
+use EmptyIterator;
+use Traversable;
+
 class SpanContext implements \OpenTracing\SpanContext
 {
     // traceID represents globally unique ID of the trace.
@@ -72,10 +75,9 @@ class SpanContext implements \OpenTracing\SpanContext
     /**
      * {@inheritdoc}
      */
-    public function getIterator()
+    public function getIterator(): Traversable
     {
-        // @phpstan-ignore-next-line
-        // TODO: Implement getIterator() method.
+        return new EmptyIterator();
     }
 
     public function buildString()
